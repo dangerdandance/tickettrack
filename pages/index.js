@@ -17,10 +17,36 @@ const fmt = (n) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(n);
 
 // Compress image to max 1200px and quality 0.8
-function compressImage(file, maxWidth = 1200, quality = 0.8) {
-  return new Promise((resolve) => {
+const processFile = async (file) => {
+  if (!file || !file.type.startsWith("image/")) {
+    showToast("Por favor sube una imagen del ticket", "error");
+    return;
+  }
+  setProcessing(true);
+  setCurrentTicket(null);
+  try {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    const base64 = await new Promise((res, rej) => {
+      reader.onload = () => res(reader.result.split(",")[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+    });
+    const result = await res.json();
+    if (result && !result.error) {
+      setCurrentTicket({ ...result, _b64: base64, _mime: file.type, _id: Date.now() });
+    } else {
+      showToast(result.error || "No pude leer el ticket.", "error");
+    }
+  } catch (e) {
+    showToast("Error al analizar el ticket", "error");
+  }
+  setProcessing(false);
+};
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
