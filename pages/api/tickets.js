@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
   try {
     const token = await getGoogleToken();
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A2:K`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Hoja 1!A2:K`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const data = await response.json();
     if (!data.values || data.values.length === 0) return res.status(200).json([]);
