@@ -1,9 +1,15 @@
-export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
+export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
   const { imageBase64, mimeType } = req.body;
-  if (!imageBase64 || !mimeType) return res.status(400).json({ error: "Missing image data" });
+
+  if (!imageBase64 || !mimeType) {
+    console.error("Missing image data", { hasBase64: !!imageBase64, mimeType });
+    return res.status(400).json({ error: "Missing image data" });
+  }
+
+  console.log("Image received, size:", imageBase64.length, "mimeType:", mimeType);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -20,7 +26,10 @@ export default async function handler(req, res) {
           {
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+              {
+                type: "image",
+                source: { type: "base64", media_type: mimeType, data: imageBase64 },
+              },
               {
                 type: "text",
                 text: `Analiza este ticket/recibo de compra y extrae la información. Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, sin backticks:
@@ -42,14 +51,30 @@ Si no puedes leer algún dato, usa null. La categoría debe ser una de las opcio
     });
 
     const data = await response.json();
+    console.log("Anthropic status:", response.status);
+    console.log("Anthropic response:", JSON.stringify(data).slice(0, 500));
+
+    if (!response.ok) {
+      console.error("Anthropic error:", data);
+      return res.status(500).json({ error: "Anthropic API error: " + JSON.stringify(data) });
+    }
+
     const text = data.content?.[0]?.text || "{}";
+    console.log("Raw text from Claude:", text.slice(0, 300));
+
     const cleaned = text.replace(/```json|```/g, "").trim();
-console.log("CLAUDE RESPONSE:", cleaned);
-const parsed = JSON.parse(cleaned);
-console.log("PARSED:", JSON.stringify(parsed));
-res.status(200).json(parsed);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("JSON parse error:", parseErr.message, "text was:", cleaned);
+      return res.status(500).json({ error: "Could not parse Claude response: " + cleaned });
+    }
+
+    console.log("Parsed result:", JSON.stringify(parsed));
+    res.status(200).json(parsed);
   } catch (e) {
-    console.error("Analyze error:", e);
+    console.error("Analyze error:", e.message);
     res.status(500).json({ error: e.message });
   }
 }
