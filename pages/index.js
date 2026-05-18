@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-
+ 
 const CATEGORIES = [
   { id: "despensa",        label: "Despensa",       icon: "🛒", color: "#4ade80", budget: 20000 },
   { id: "restaurantes",    label: "Restaurantes",    icon: "🍽️", color: "#fb923c", budget: 10000 },
@@ -10,60 +10,12 @@ const CATEGORIES = [
   { id: "servicios",       label: "Servicios",       icon: "⚡", color: "#34d399", budget: 5000  },
   { id: "vivienda",        label: "Vivienda",        icon: "🏠", color: "#94a3b8", budget: 15000 },
 ];
-
+ 
 const MONTHLY_BUDGET = 60000;
 const SAVINGS_GOAL   = 10000;
 const fmt = (n) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(n);
-
-// Compress image to max 1200px and quality 0.8
-const processFile = async (file) => {
-  if (!file || !file.type.startsWith("image/")) {
-    showToast("Por favor sube una imagen del ticket", "error");
-    return;
-  }
-  setProcessing(true);
-  setCurrentTicket(null);
-  try {
-    const reader = new FileReader();
-    const base64 = await new Promise((res, rej) => {
-      reader.onload = () => res(reader.result.split(",")[1]);
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
-    const res = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
-    });
-    const result = await res.json();
-    if (result && !result.error) {
-      setCurrentTicket({ ...result, _b64: base64, _mime: file.type, _id: Date.now() });
-    } else {
-      showToast(result.error || "No pude leer el ticket.", "error");
-    }
-  } catch (e) {
-    showToast("Error al analizar el ticket", "error");
-  }
-  setProcessing(false);
-};
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let { width, height } = img;
-        if (width > maxWidth) { height = (height * maxWidth) / width; width = maxWidth; }
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL("image/jpeg", quality).split(",")[1];
-        resolve({ base64: compressed, mimeType: "image/jpeg" });
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
+ 
 export default function TicketTracker() {
   const [tab, setTab]                     = useState("capture");
   const [tickets, setTickets]             = useState([]);
@@ -74,12 +26,12 @@ export default function TicketTracker() {
   const [toast, setToast]                 = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const fileRef = useRef();
-
+ 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
-
+ 
   useEffect(() => {
     (async () => {
       setLoadingHistory(true);
@@ -91,7 +43,7 @@ export default function TicketTracker() {
       setLoadingHistory(false);
     })();
   }, []);
-
+ 
   const processFile = async (file) => {
     if (!file || !file.type.startsWith("image/")) {
       showToast("Por favor sube una imagen del ticket", "error");
@@ -100,37 +52,44 @@ export default function TicketTracker() {
     setProcessing(true);
     setCurrentTicket(null);
     try {
-      const { base64, mimeType } = await compressImage(file);
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+ 
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
       });
       const result = await res.json();
+ 
       if (result && !result.error) {
-        setCurrentTicket({ ...result, _b64: base64, _mime: mimeType, _id: Date.now() });
+        setCurrentTicket({ ...result, _b64: base64, _mime: file.type, _id: Date.now() });
       } else {
-        showToast("No pude leer el ticket. Intenta con mejor iluminación.", "error");
+        showToast(result?.error || "No pude leer el ticket. Intenta de nuevo.", "error");
       }
     } catch (e) {
       showToast("Error al analizar el ticket", "error");
     }
     setProcessing(false);
   };
-
+ 
   const onDrop = useCallback((e) => {
     e.preventDefault();
     setDragging(false);
     processFile(e.dataTransfer.files[0]);
   }, []);
-
+ 
   const confirmTicket = async () => {
     if (!currentTicket) return;
     setProcessing(true);
     const ticket = { ...(editingTicket || currentTicket) };
     const cat = CATEGORIES.find((c) => c.id === ticket.categoria_sugerida);
     ticket.categoria_label = cat?.label || ticket.categoria_sugerida;
-
+ 
     try {
       const res = await fetch("/api/save", {
         method: "POST",
@@ -153,11 +112,11 @@ export default function TicketTracker() {
     }
     setProcessing(false);
   };
-
+ 
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear  = now.getFullYear();
-
+ 
   const getWeek = (d) => {
     const date = new Date(d);
     date.setHours(0,0,0,0);
@@ -165,7 +124,7 @@ export default function TicketTracker() {
     const w1 = new Date(date.getFullYear(),0,4);
     return 1 + Math.round(((date-w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
   };
-
+ 
   const monthTickets = tickets.filter((t) => {
     if (!t.fecha) return false;
     const [,m,y] = t.fecha.split("/");
@@ -177,17 +136,17 @@ export default function TicketTracker() {
     const td = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
     return getWeek(td) === getWeek(now) && td.getFullYear() === currentYear;
   });
-
+ 
   const sumByCat = (arr) =>
     CATEGORIES.map((cat) => ({
       ...cat,
       spent: arr.filter((t) => t.categoria_sugerida === cat.id).reduce((s,t) => s+(parseFloat(t.total)||0), 0),
     }));
-
+ 
   const monthStats = sumByCat(monthTickets);
   const totalMonth = monthStats.reduce((s,c) => s+c.spent, 0);
   const totalWeek  = sumByCat(weekTickets).reduce((s,c) => s+c.spent, 0);
-
+ 
   return (
     <div style={{ minHeight:"100vh", background:"#0a0f1a", color:"#e8eaf0", fontFamily:"'DM Sans',sans-serif", display:"flex", flexDirection:"column" }}>
       <style>{`
@@ -196,8 +155,7 @@ export default function TicketTracker() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
-
-      {/* HEADER */}
+ 
       <header style={{ padding:"20px 24px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #1e2a3a" }}>
         <div>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:"#fff" }}>💳 TicketTrack</div>
@@ -210,8 +168,7 @@ export default function TicketTracker() {
           </div>
         </div>
       </header>
-
-      {/* TABS */}
+ 
       <nav style={{ display:"flex", borderBottom:"1px solid #1e2a3a", background:"#0d1420" }}>
         {[{ id:"capture", label:"📷 Capturar" }, { id:"dashboard", label:"📊 Dashboard" }, { id:"history", label:"🗂 Historial" }].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -222,8 +179,7 @@ export default function TicketTracker() {
           }}>{t.label}</button>
         ))}
       </nav>
-
-      {/* TOAST */}
+ 
       {toast && (
         <div style={{
           position:"fixed", top:80, left:"50%", transform:"translateX(-50%)",
@@ -233,10 +189,9 @@ export default function TicketTracker() {
           animation:"fadeIn 0.3s ease", whiteSpace:"nowrap",
         }}>{toast.msg}</div>
       )}
-
+ 
       <main style={{ flex:1, padding:20, maxWidth:600, width:"100%", margin:"0 auto" }}>
-
-        {/* CAPTURE */}
+ 
         {tab === "capture" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:16 }}>Sube tu ticket</h2>
@@ -259,7 +214,7 @@ export default function TicketTracker() {
                   onChange={(e) => processFile(e.target.files[0])} />
               </div>
             )}
-
+ 
             {processing && (
               <div style={{ textAlign:"center", padding:"60px 0" }}>
                 <div style={{ fontSize:40, animation:"spin 1s linear infinite", display:"inline-block" }}>⚙️</div>
@@ -267,14 +222,13 @@ export default function TicketTracker() {
                 <div style={{ color:"#5a7a9a", fontSize:13, marginTop:6 }}>Extrayendo tienda, monto, artículos...</div>
               </div>
             )}
-
+ 
             {currentTicket && !processing && (
               <div style={{ background:"#111827", borderRadius:16, padding:20, border:"1px solid #1e2a3a" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                   <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, margin:0 }}>✨ Ticket analizado</h3>
                   <span style={{ fontSize:11, background:"#1e3a2f", color:"#4ade80", padding:"3px 10px", borderRadius:20 }}>Listo para guardar</span>
                 </div>
-
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
                   {[{ label:"Tienda", key:"tienda" }, { label:"Fecha", key:"fecha" }, { label:"Total", key:"total" }, { label:"Moneda", key:"moneda" }].map(({ label, key }) => (
                     <div key={key} style={{ background:"#0d1420", borderRadius:10, padding:"10px 14px" }}>
@@ -290,7 +244,6 @@ export default function TicketTracker() {
                     </div>
                   ))}
                 </div>
-
                 <div style={{ marginBottom:16 }}>
                   <div style={{ fontSize:11, color:"#5a7a9a", marginBottom:8 }}>Categoría</div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
@@ -310,18 +263,16 @@ export default function TicketTracker() {
                     })}
                   </div>
                 </div>
-
                 {(currentTicket.items||[]).length > 0 && (
                   <div style={{ background:"#0d1420", borderRadius:10, padding:12, marginBottom:16 }}>
                     <div style={{ fontSize:11, color:"#5a7a9a", marginBottom:8 }}>Artículos detectados</div>
                     {currentTicket.items.map((item, i) => (
-                      <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:13, padding:"4px 0", borderBottom: i<currentTicket.items.length-1 ? "1px solid #1a2535":"none" }}>
+                      <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:13, padding:"4px 0", borderBottom: i<currentTicket.items.length-1?"1px solid #1a2535":"none" }}>
                         <span>{item.descripcion}</span><span style={{ color:"#60a5fa" }}>{fmt(item.precio)}</span>
                       </div>
                     ))}
                   </div>
                 )}
-
                 <div style={{ display:"flex", gap:10 }}>
                   <button onClick={() => { setCurrentTicket(null); setEditingTicket(null); }}
                     style={{ flex:1, padding:"12px", borderRadius:10, border:"1px solid #2a3a4f", background:"transparent", color:"#5a7a9a", fontSize:14, cursor:"pointer" }}>
@@ -336,8 +287,7 @@ export default function TicketTracker() {
             )}
           </div>
         )}
-
-        {/* DASHBOARD */}
+ 
         {tab === "dashboard" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:4 }}>Dashboard</h2>
@@ -358,7 +308,6 @@ export default function TicketTracker() {
                 </div>
               ))}
             </div>
-
             <div style={{ background:"#111827", borderRadius:14, padding:16, marginBottom:16, border:"1px solid #1e2a3a" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10, fontSize:13 }}>
                 <span style={{ fontWeight:600 }}>Presupuesto mensual</span>
@@ -373,7 +322,6 @@ export default function TicketTracker() {
                 <span>Disponible: {fmt(Math.max(MONTHLY_BUDGET-totalMonth-SAVINGS_GOAL,0))}</span>
               </div>
             </div>
-
             <h3 style={{ fontSize:14, fontWeight:600, color:"#8a9ab0", marginBottom:12 }}>Por categoría — este mes</h3>
             {monthStats.map((cat) => {
               const pct = cat.budget>0 ? Math.min((cat.spent/cat.budget)*100,100) : 0;
@@ -393,8 +341,7 @@ export default function TicketTracker() {
             })}
           </div>
         )}
-
-        {/* HISTORY */}
+ 
         {tab === "history" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:16 }}>Historial de tickets</h2>
