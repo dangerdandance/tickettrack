@@ -1,6 +1,6 @@
 import { getGoogleToken } from "../../lib/googleAuth";
 
-export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
+export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
@@ -44,7 +44,11 @@ async function uploadToDrive(token, base64Data, mimeType, fileName) {
       body,
     }
   );
-  return res.ok ? await res.json() : null;
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Drive upload failed: ${res.status} ${err}`);
+  }
+  return await res.json();
 }
 
 export default async function handler(req, res) {
