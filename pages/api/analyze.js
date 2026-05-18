@@ -43,8 +43,11 @@ Si no puedes leer algún dato, usa null. La categoría debe ser una de las opcio
 
     const data = await response.json();
     const text = data.content?.[0]?.text || "{}";
-    const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-    res.status(200).json(parsed);
+    const cleaned = text.replace(/```json|```/g, "").trim();
+console.log("CLAUDE RESPONSE:", cleaned);
+const parsed = JSON.parse(cleaned);
+console.log("PARSED:", JSON.stringify(parsed));
+res.status(200).json(parsed);
   } catch (e) {
     console.error("Analyze error:", e);
     res.status(500).json({ error: e.message });
