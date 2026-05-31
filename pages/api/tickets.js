@@ -1,5 +1,3 @@
-import { getGoogleToken } from "../../lib/googleAuth";
-
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
 const CATEGORY_MAP = {
@@ -10,14 +8,17 @@ const CATEGORY_MAP = {
 
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
+
+  const token = process.env.GOOGLE_ACCESS_TOKEN;
+  if (!token) return res.status(500).json({ error: "GOOGLE_ACCESS_TOKEN not configured" });
+
   try {
-    const token = await getGoogleToken();
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Hoja1!A2:K`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Hoja 1!A2:I`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const data = await response.json();
     if (!data.values || data.values.length === 0) return res.status(200).json([]);
     const tickets = data.values.map((row, i) => ({
-      _id: row[10] || `sheet_${i}`,
+      _id: row[8] || `sheet_${i}`,
       fecha: row[1] || "",
       tienda: row[2] || "",
       categoria_sugerida: CATEGORY_MAP[row[3]] || row[3] || "",
@@ -26,7 +27,6 @@ export default async function handler(req, res) {
       moneda: row[5] || "MXN",
       items: row[6] ? row[6].split(", ").map((d) => ({ descripcion: d, precio: 0 })) : [],
       notas: row[7] || "",
-      driveLink: row[8] || null,
       sheetSaved: true,
       confirmedAt: row[0] || "",
     }));
