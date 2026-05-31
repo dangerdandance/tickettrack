@@ -45,6 +45,47 @@ export default function TicketTracker() {
   }, []);
  
   const processFile = async (file) => {
+  if (!file || !file.type.startsWith("image/")) {
+    showToast("Por favor sube una imagen del ticket", "error");
+    return;
+  }
+  setProcessing(true);
+  setCurrentTicket(null);
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX = 1024;
+        let w = img.width, h = img.height;
+        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
+    });
+    const result = await res.json();
+    if (result && !result.error) {
+      setCurrentTicket({ ...result, _b64: base64, _mime: "image/jpeg", _id: Date.now() });
+    } else {
+      showToast(result?.error || "No pude leer el ticket.", "error");
+    }
+  } catch (e) {
+    showToast("Error al analizar el ticket", "error");
+  }
+  setProcessing(false);
+};
     if (!file || !file.type.startsWith("image/")) {
       showToast("Por favor sube una imagen del ticket", "error");
       return;
