@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   if (!token) return res.status(500).json({ error: "GOOGLE_ACCESS_TOKEN not configured" });
 
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Hoja%201!A2:I`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/'Hoja 1'!A2:I`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const data = await response.json();
     if (!data.values || data.values.length === 0) return res.status(200).json([]);
