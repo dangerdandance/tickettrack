@@ -26,8 +26,29 @@ export default function TicketTracker() {
   const [toast, setToast]                 = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [dupWarning, setDupWarning]       = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const fileRef   = useRef();
   const cameraRef = useRef();
+
+  const deleteTicket = async (ticket) => {
+    try {
+      const res = await fetch("/api/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: ticket._id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTickets((prev) => prev.filter((t) => t._id !== ticket._id));
+        setConfirmDelete(null);
+        showToast("🗑️ Ticket eliminado", "success");
+      } else {
+        showToast(`⚠️ Error: ${data.error}`, "error");
+      }
+    } catch (e) {
+      showToast("⚠️ Error al eliminar", "error");
+    }
+  };
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -59,7 +80,7 @@ export default function TicketTracker() {
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = () => {
-          const MAX = 800;
+          const MAX = 1024;
           let w = img.width, h = img.height;
           if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
           if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
@@ -67,7 +88,7 @@ export default function TicketTracker() {
           canvas.width = w; canvas.height = h;
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
           URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL("image/jpeg", 0.6).split(",")[1]);
+          resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
         };
         img.onerror = reject;
         img.src = url;
@@ -247,7 +268,7 @@ export default function TicketTracker() {
                   </button>
                 </div>
                 <div style={{ fontSize:11, color:"#3a5068", marginTop:16 }}>También puedes arrastrar una imagen aquí</div>
-                <input ref={cameraRef} type="file" accept="image/*" capture="user" style={{ display:"none" }}
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
                 <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
@@ -431,9 +452,15 @@ export default function TicketTracker() {
                       <div style={{ fontSize:12, color:"#5a7a9a" }}>{cat?.label || t.categoria_label} · {t.fecha}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{fmt(t.total)}</div>
-                    <div style={{ fontSize:10, color:"#4ade80", marginTop:2 }}>✅ En Sheets</div>
+                  <div style={{ textAlign:"right", display:"flex", alignItems:"center", gap:10 }}>
+                    <div>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{fmt(t.total)}</div>
+                      <div style={{ fontSize:10, color:"#4ade80", marginTop:2 }}>✅ En Sheets</div>
+                    </div>
+                    <button onClick={() => setConfirmDelete(t)}
+                      style={{ background:"#7f1d1d33", border:"1px solid #7f1d1d", borderRadius:8, padding:"6px 8px", color:"#f87171", fontSize:16, cursor:"pointer", flexShrink:0 }}>
+                      🗑️
+                    </button>
                   </div>
                 </div>
               );
@@ -441,6 +468,40 @@ export default function TicketTracker() {
           </div>
         )}
       </main>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {confirmDelete && (
+        <div style={{
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:200,
+          display:"flex", alignItems:"center", justifyContent:"center", padding:20,
+        }}>
+          <div style={{ background:"#111827", borderRadius:16, padding:24, maxWidth:340, width:"100%", border:"1px solid #2a3a4f" }}>
+            <div style={{ fontSize:32, textAlign:"center", marginBottom:12 }}>🗑️</div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, textAlign:"center", marginBottom:8 }}>
+              ¿Eliminar ticket?
+            </div>
+            <div style={{ fontSize:13, color:"#5a7a9a", textAlign:"center", marginBottom:4 }}>
+              {confirmDelete.tienda} — {fmt(confirmDelete.total)}
+            </div>
+            <div style={{ fontSize:12, color:"#3a5068", textAlign:"center", marginBottom:20 }}>
+              {confirmDelete.fecha}
+            </div>
+            <div style={{ fontSize:12, color:"#f87171", textAlign:"center", marginBottom:20 }}>
+              Se eliminará del historial y de Google Sheets
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setConfirmDelete(null)}
+                style={{ flex:1, padding:"12px", borderRadius:10, border:"1px solid #2a3a4f", background:"transparent", color:"#5a7a9a", fontSize:14, cursor:"pointer" }}>
+                Cancelar
+              </button>
+              <button onClick={() => deleteTicket(confirmDelete)}
+                style={{ flex:1, padding:"12px", borderRadius:10, border:"none", background:"#7f1d1d", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
