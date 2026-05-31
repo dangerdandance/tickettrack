@@ -247,7 +247,7 @@ export default function TicketTracker() {
                   </button>
                 </div>
                 <div style={{ fontSize:11, color:"#3a5068", marginTop:16 }}>También puedes arrastrar una imagen aquí</div>
-                <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                <input ref={cameraRef} type="file" accept="image/*" capture="user" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
                 <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
