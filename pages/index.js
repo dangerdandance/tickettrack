@@ -25,7 +25,9 @@ export default function TicketTracker() {
   const [editingTicket, setEditingTicket] = useState(null);
   const [toast, setToast]                 = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const fileRef = useRef();
+  const [dupWarning, setDupWarning]       = useState(null);
+  const fileRef   = useRef();
+  const cameraRef = useRef();
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -51,6 +53,7 @@ export default function TicketTracker() {
     }
     setProcessing(true);
     setCurrentTicket(null);
+    setDupWarning(null);
     try {
       const base64 = await new Promise((resolve, reject) => {
         const img = new Image();
@@ -77,6 +80,13 @@ export default function TicketTracker() {
       });
       const result = await res.json();
       if (result && !result.error) {
+        // Check for duplicates
+        const dup = tickets.find(t =>
+          t.tienda?.toLowerCase() === result.tienda?.toLowerCase() &&
+          t.fecha === result.fecha &&
+          parseFloat(t.total) === parseFloat(result.total)
+        );
+        if (dup) setDupWarning(`Ya existe un ticket de ${result.tienda} por $${result.total} del ${result.fecha}`);
         setCurrentTicket({ ...result, _b64: base64, _mime: "image/jpeg", _id: Date.now() });
       } else {
         showToast(result?.error || "No pude leer el ticket.", "error");
@@ -91,10 +101,14 @@ export default function TicketTracker() {
     e.preventDefault();
     setDragging(false);
     processFile(e.dataTransfer.files[0]);
-  }, []);
+  }, [tickets]);
 
-  const confirmTicket = async () => {
+  const confirmTicket = async (force = false) => {
     if (!currentTicket) return;
+    if (dupWarning && !force) {
+      // Already showing warning, user must confirm
+      return;
+    }
     setProcessing(true);
     const ticket = { ...(editingTicket || currentTicket) };
     const cat = CATEGORIES.find((c) => c.id === ticket.categoria_sugerida);
@@ -104,15 +118,16 @@ export default function TicketTracker() {
       const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticket, imageBase64: ticket._b64, mimeType: ticket._mime }),
+        body: JSON.stringify({ ticket }),
       });
       const data = await res.json();
       if (data.success) {
-        const saved = { ...ticket, driveLink: data.driveLink, sheetSaved: true, confirmedAt: new Date().toISOString() };
+        const saved = { ...ticket, sheetSaved: true, confirmedAt: new Date().toISOString() };
         setTickets((prev) => [saved, ...prev.filter((t) => t._id !== saved._id)]);
         setCurrentTicket(null);
         setEditingTicket(null);
-        showToast("✅ Guardado en Google Sheets y Drive", "success");
+        setDupWarning(null);
+        showToast("✅ Guardado en Google Sheets", "success");
         setTab("history");
       } else {
         showToast(`⚠️ Error: ${data.error || "desconocido"}`, "error");
@@ -205,22 +220,36 @@ export default function TicketTracker() {
         {tab === "capture" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:16 }}>Sube tu ticket</h2>
+
             {!currentTicket && !processing && (
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
-                onClick={() => fileRef.current?.click()}
                 style={{
                   border:`2px dashed ${dragging ? "#60a5fa" : "#2a3a4f"}`, borderRadius:16,
-                  padding:"48px 24px", textAlign:"center", cursor:"pointer",
+                  padding:"40px 24px", textAlign:"center",
                   background: dragging ? "rgba(96,165,250,0.05)" : "rgba(255,255,255,0.02)", transition:"all 0.2s",
                 }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>📄</div>
-                <div style={{ fontSize:16, fontWeight:600, color:"#c0cfe0" }}>Arrastra tu ticket aquí</div>
-                <div style={{ fontSize:13, color:"#5a7a9a", marginTop:6 }}>o toca para seleccionar una foto</div>
-                <div style={{ fontSize:11, color:"#3a5068", marginTop:8 }}>JPG, PNG, HEIC — la IA lo analiza automáticamente</div>
-                <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                <div style={{ fontSize:48, marginBottom:12 }}>🧾</div>
+                <div style={{ fontSize:16, fontWeight:600, color:"#c0cfe0", marginBottom:6 }}>Captura tu ticket</div>
+                <div style={{ fontSize:12, color:"#5a7a9a", marginBottom:24 }}>Toma una foto o sube una imagen</div>
+                <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+                  <button
+                    onClick={() => cameraRef.current?.click()}
+                    style={{ padding:"12px 24px", borderRadius:12, border:"1px solid #60a5fa", background:"#60a5fa22", color:"#60a5fa", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                    📷 Tomar foto
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    style={{ padding:"12px 24px", borderRadius:12, border:"1px solid #a78bfa", background:"#a78bfa22", color:"#a78bfa", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                    🖼️ Galería
+                  </button>
+                </div>
+                <div style={{ fontSize:11, color:"#3a5068", marginTop:16 }}>También puedes arrastrar una imagen aquí</div>
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                  onChange={(e) => processFile(e.target.files[0])} />
+                <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
               </div>
             )}
@@ -239,6 +268,24 @@ export default function TicketTracker() {
                   <h3 style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:700, margin:0 }}>✨ Ticket analizado</h3>
                   <span style={{ fontSize:11, background:"#1e3a2f", color:"#4ade80", padding:"3px 10px", borderRadius:20 }}>Listo para guardar</span>
                 </div>
+
+                {dupWarning && (
+                  <div style={{ background:"#451a03", border:"1px solid #92400e", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:13 }}>
+                    <div style={{ color:"#fbbf24", fontWeight:600, marginBottom:4 }}>⚠️ Posible duplicado</div>
+                    <div style={{ color:"#d97706" }}>{dupWarning}</div>
+                    <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                      <button onClick={() => { setCurrentTicket(null); setEditingTicket(null); setDupWarning(null); }}
+                        style={{ flex:1, padding:"8px", borderRadius:8, border:"1px solid #92400e", background:"transparent", color:"#fbbf24", fontSize:12, cursor:"pointer" }}>
+                        Cancelar
+                      </button>
+                      <button onClick={() => confirmTicket(true)}
+                        style={{ flex:1, padding:"8px", borderRadius:8, border:"none", background:"#92400e", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                        Guardar de todas formas
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
                   {[{ label:"Tienda", key:"tienda" }, { label:"Fecha", key:"fecha" }, { label:"Total", key:"total" }, { label:"Moneda", key:"moneda" }].map(({ label, key }) => (
                     <div key={key} style={{ background:"#0d1420", borderRadius:10, padding:"10px 14px" }}>
@@ -254,6 +301,7 @@ export default function TicketTracker() {
                     </div>
                   ))}
                 </div>
+
                 <div style={{ marginBottom:16 }}>
                   <div style={{ fontSize:11, color:"#5a7a9a", marginBottom:8 }}>Categoría</div>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
@@ -273,6 +321,7 @@ export default function TicketTracker() {
                     })}
                   </div>
                 </div>
+
                 {(currentTicket.items||[]).length > 0 && (
                   <div style={{ background:"#0d1420", borderRadius:10, padding:12, marginBottom:16 }}>
                     <div style={{ fontSize:11, color:"#5a7a9a", marginBottom:8 }}>Artículos detectados</div>
@@ -283,16 +332,19 @@ export default function TicketTracker() {
                     ))}
                   </div>
                 )}
-                <div style={{ display:"flex", gap:10 }}>
-                  <button onClick={() => { setCurrentTicket(null); setEditingTicket(null); }}
-                    style={{ flex:1, padding:"12px", borderRadius:10, border:"1px solid #2a3a4f", background:"transparent", color:"#5a7a9a", fontSize:14, cursor:"pointer" }}>
-                    Cancelar
-                  </button>
-                  <button onClick={confirmTicket}
-                    style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer" }}>
-                    💾 Guardar en Google Sheets
-                  </button>
-                </div>
+
+                {!dupWarning && (
+                  <div style={{ display:"flex", gap:10 }}>
+                    <button onClick={() => { setCurrentTicket(null); setEditingTicket(null); setDupWarning(null); }}
+                      style={{ flex:1, padding:"12px", borderRadius:10, border:"1px solid #2a3a4f", background:"transparent", color:"#5a7a9a", fontSize:14, cursor:"pointer" }}>
+                      Cancelar
+                    </button>
+                    <button onClick={() => confirmTicket(false)}
+                      style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2563eb,#7c3aed)", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                      💾 Guardar en Google Sheets
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -377,14 +429,11 @@ export default function TicketTracker() {
                     <div>
                       <div style={{ fontWeight:600, fontSize:14 }}>{t.tienda || "Sin nombre"}</div>
                       <div style={{ fontSize:12, color:"#5a7a9a" }}>{cat?.label || t.categoria_label} · {t.fecha}</div>
-                      {t.driveLink && <a href={t.driveLink} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"#60a5fa" }}>Ver en Drive ↗</a>}
                     </div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16 }}>{fmt(t.total)}</div>
-                    <div style={{ fontSize:10, color: t.sheetSaved?"#4ade80":"#fbbf24", marginTop:2 }}>
-                      {t.sheetSaved ? "✅ En Sheets" : "💾 Local"}
-                    </div>
+                    <div style={{ fontSize:10, color:"#4ade80", marginTop:2 }}>✅ En Sheets</div>
                   </div>
                 </div>
               );
