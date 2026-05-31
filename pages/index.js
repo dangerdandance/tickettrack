@@ -171,15 +171,24 @@ export default function TicketTracker() {
     return 1 + Math.round(((date-w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
   };
 
+  const parseTicketDate = (fecha) => {
+    if (!fecha) return null;
+    const parts = fecha.split("/");
+    if (parts.length !== 3) return null;
+    let [d, m, y] = parts.map(p => parseInt(p));
+    if (y < 100) y += 2000; // fix 2-digit year: 26 -> 2026
+    return { d, m: m - 1, y };
+  };
+
   const monthTickets = tickets.filter((t) => {
-    if (!t.fecha) return false;
-    const [,m,y] = t.fecha.split("/");
-    return parseInt(m)-1 === currentMonth && parseInt(y) === currentYear;
+    const parsed = parseTicketDate(t.fecha);
+    if (!parsed) return false;
+    return parsed.m === currentMonth && parsed.y === currentYear;
   });
   const weekTickets = tickets.filter((t) => {
-    if (!t.fecha) return false;
-    const [d,m,y] = t.fecha.split("/");
-    const td = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+    const parsed = parseTicketDate(t.fecha);
+    if (!parsed) return false;
+    const td = new Date(parsed.y, parsed.m, parsed.d);
     return getWeek(td) === getWeek(now) && td.getFullYear() === currentYear;
   });
 
