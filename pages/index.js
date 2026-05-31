@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
- 
+
 const CATEGORIES = [
   { id: "despensa",        label: "Despensa",       icon: "🛒", color: "#4ade80", budget: 20000 },
   { id: "restaurantes",    label: "Restaurantes",    icon: "🍽️", color: "#fb923c", budget: 10000 },
@@ -10,12 +10,12 @@ const CATEGORIES = [
   { id: "servicios",       label: "Servicios",       icon: "⚡", color: "#34d399", budget: 5000  },
   { id: "vivienda",        label: "Vivienda",        icon: "🏠", color: "#94a3b8", budget: 15000 },
 ];
- 
+
 const MONTHLY_BUDGET = 60000;
 const SAVINGS_GOAL   = 10000;
 const fmt = (n) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0 }).format(n);
- 
+
 export default function TicketTracker() {
   const [tab, setTab]                     = useState("capture");
   const [tickets, setTickets]             = useState([]);
@@ -26,12 +26,12 @@ export default function TicketTracker() {
   const [toast, setToast]                 = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const fileRef = useRef();
- 
+
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
- 
+
   useEffect(() => {
     (async () => {
       setLoadingHistory(true);
@@ -43,49 +43,8 @@ export default function TicketTracker() {
       setLoadingHistory(false);
     })();
   }, []);
- 
-  const processFile = async (file) => {
-  if (!file || !file.type.startsWith("image/")) {
-    showToast("Por favor sube una imagen del ticket", "error");
-    return;
-  }
-  setProcessing(true);
-  setCurrentTicket(null);
-  try {
-    const base64 = await new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const MAX = 1024;
-        let w = img.width, h = img.height;
-        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
-        if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
 
-    const res = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
-    });
-    const result = await res.json();
-    if (result && !result.error) {
-      setCurrentTicket({ ...result, _b64: base64, _mime: "image/jpeg", _id: Date.now() });
-    } else {
-      showToast(result?.error || "No pude leer el ticket.", "error");
-    }
-  } catch (e) {
-    showToast("Error al analizar el ticket", "error");
-  }
-  setProcessing(false);
-};
+  const processFile = async (file) => {
     if (!file || !file.type.startsWith("image/")) {
       showToast("Por favor sube una imagen del ticket", "error");
       return;
@@ -94,43 +53,53 @@ export default function TicketTracker() {
     setCurrentTicket(null);
     try {
       const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const MAX = 1024;
+          let w = img.width, h = img.height;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+          if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
+        };
+        img.onerror = reject;
+        img.src = url;
       });
- 
+
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
       const result = await res.json();
- 
       if (result && !result.error) {
-        setCurrentTicket({ ...result, _b64: base64, _mime: file.type, _id: Date.now() });
+        setCurrentTicket({ ...result, _b64: base64, _mime: "image/jpeg", _id: Date.now() });
       } else {
-        showToast(result?.error || "No pude leer el ticket. Intenta de nuevo.", "error");
+        showToast(result?.error || "No pude leer el ticket.", "error");
       }
     } catch (e) {
       showToast("Error al analizar el ticket", "error");
     }
     setProcessing(false);
   };
- 
+
   const onDrop = useCallback((e) => {
     e.preventDefault();
     setDragging(false);
     processFile(e.dataTransfer.files[0]);
   }, []);
- 
+
   const confirmTicket = async () => {
     if (!currentTicket) return;
     setProcessing(true);
     const ticket = { ...(editingTicket || currentTicket) };
     const cat = CATEGORIES.find((c) => c.id === ticket.categoria_sugerida);
     ticket.categoria_label = cat?.label || ticket.categoria_sugerida;
- 
+
     try {
       const res = await fetch("/api/save", {
         method: "POST",
@@ -153,11 +122,11 @@ export default function TicketTracker() {
     }
     setProcessing(false);
   };
- 
+
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear  = now.getFullYear();
- 
+
   const getWeek = (d) => {
     const date = new Date(d);
     date.setHours(0,0,0,0);
@@ -165,7 +134,7 @@ export default function TicketTracker() {
     const w1 = new Date(date.getFullYear(),0,4);
     return 1 + Math.round(((date-w1)/86400000 - 3 + ((w1.getDay()+6)%7))/7);
   };
- 
+
   const monthTickets = tickets.filter((t) => {
     if (!t.fecha) return false;
     const [,m,y] = t.fecha.split("/");
@@ -177,17 +146,17 @@ export default function TicketTracker() {
     const td = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
     return getWeek(td) === getWeek(now) && td.getFullYear() === currentYear;
   });
- 
+
   const sumByCat = (arr) =>
     CATEGORIES.map((cat) => ({
       ...cat,
       spent: arr.filter((t) => t.categoria_sugerida === cat.id).reduce((s,t) => s+(parseFloat(t.total)||0), 0),
     }));
- 
+
   const monthStats = sumByCat(monthTickets);
   const totalMonth = monthStats.reduce((s,c) => s+c.spent, 0);
   const totalWeek  = sumByCat(weekTickets).reduce((s,c) => s+c.spent, 0);
- 
+
   return (
     <div style={{ minHeight:"100vh", background:"#0a0f1a", color:"#e8eaf0", fontFamily:"'DM Sans',sans-serif", display:"flex", flexDirection:"column" }}>
       <style>{`
@@ -196,7 +165,7 @@ export default function TicketTracker() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
- 
+
       <header style={{ padding:"20px 24px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #1e2a3a" }}>
         <div>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:"#fff" }}>💳 TicketTrack</div>
@@ -209,7 +178,7 @@ export default function TicketTracker() {
           </div>
         </div>
       </header>
- 
+
       <nav style={{ display:"flex", borderBottom:"1px solid #1e2a3a", background:"#0d1420" }}>
         {[{ id:"capture", label:"📷 Capturar" }, { id:"dashboard", label:"📊 Dashboard" }, { id:"history", label:"🗂 Historial" }].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -220,7 +189,7 @@ export default function TicketTracker() {
           }}>{t.label}</button>
         ))}
       </nav>
- 
+
       {toast && (
         <div style={{
           position:"fixed", top:80, left:"50%", transform:"translateX(-50%)",
@@ -230,9 +199,9 @@ export default function TicketTracker() {
           animation:"fadeIn 0.3s ease", whiteSpace:"nowrap",
         }}>{toast.msg}</div>
       )}
- 
+
       <main style={{ flex:1, padding:20, maxWidth:600, width:"100%", margin:"0 auto" }}>
- 
+
         {tab === "capture" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:16 }}>Sube tu ticket</h2>
@@ -255,7 +224,7 @@ export default function TicketTracker() {
                   onChange={(e) => processFile(e.target.files[0])} />
               </div>
             )}
- 
+
             {processing && (
               <div style={{ textAlign:"center", padding:"60px 0" }}>
                 <div style={{ fontSize:40, animation:"spin 1s linear infinite", display:"inline-block" }}>⚙️</div>
@@ -263,7 +232,7 @@ export default function TicketTracker() {
                 <div style={{ color:"#5a7a9a", fontSize:13, marginTop:6 }}>Extrayendo tienda, monto, artículos...</div>
               </div>
             )}
- 
+
             {currentTicket && !processing && (
               <div style={{ background:"#111827", borderRadius:16, padding:20, border:"1px solid #1e2a3a" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -328,7 +297,7 @@ export default function TicketTracker() {
             )}
           </div>
         )}
- 
+
         {tab === "dashboard" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:4 }}>Dashboard</h2>
@@ -382,7 +351,7 @@ export default function TicketTracker() {
             })}
           </div>
         )}
- 
+
         {tab === "history" && (
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:16 }}>Historial de tickets</h2>
