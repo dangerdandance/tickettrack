@@ -80,7 +80,7 @@ export default function TicketTracker() {
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = () => {
-          const MAX = 1024;
+          const MAX = 800;
           let w = img.width, h = img.height;
           if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
           if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
@@ -88,7 +88,7 @@ export default function TicketTracker() {
           canvas.width = w; canvas.height = h;
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
           URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
+          resolve(canvas.toDataURL("image/jpeg", 0.6).split(",")[1]);
         };
         img.onerror = reject;
         img.src = url;
@@ -268,7 +268,7 @@ export default function TicketTracker() {
                   </button>
                 </div>
                 <div style={{ fontSize:11, color:"#3a5068", marginTop:16 }}>También puedes arrastrar una imagen aquí</div>
-                <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
+                <input ref={cameraRef} type="file" accept="image/*" capture="user" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
                 <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }}
                   onChange={(e) => processFile(e.target.files[0])} />
