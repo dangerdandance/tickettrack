@@ -11,7 +11,7 @@ async function ensureHeaders(token) {
   if (data.values) return;
   const headers = [["Fecha Registro", "Fecha Ticket", "Tienda", "Categoría", "Total (MXN)", "Moneda", "Artículos", "Notas", "ID"]];
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Hoja 1!A1:append?valueInputOption=USER_ENTERED`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Hoja%201!A:I:append?valueInputOption=USER_ENTERED`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
