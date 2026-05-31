@@ -59,7 +59,7 @@ export default function TicketTracker() {
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = () => {
-          const MAX = 1024;
+          const MAX = 800;
           let w = img.width, h = img.height;
           if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
           if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
@@ -67,7 +67,7 @@ export default function TicketTracker() {
           canvas.width = w; canvas.height = h;
           canvas.getContext("2d").drawImage(img, 0, 0, w, h);
           URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
+          resolve(canvas.toDataURL("image/jpeg", 0.6).split(",")[1]);
         };
         img.onerror = reject;
         img.src = url;
